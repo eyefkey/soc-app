@@ -1,0 +1,93 @@
+name: soc
+
+services:
+  frontend:
+    build:
+      context: ./soc-hai
+      dockerfile: Dockerfile
+    container_name: soc-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: production
+      # Server-side only. The browser never calls the API directly: server
+      # components and server actions attach the session token, so no API
+      # origin or credential reaches the client.
+      API_URL: http://backend:4000
+    depends_on:
+      backend:
+        condition: service_healthy
+    command: sh -c "npm run start -- --hostname 0.0.0.0 --port 3000"
+
+  backend:
+    build:
+      context: ./soc-backend
+      dockerfile: Dockerfile
+    container_name: soc-backend
+    restart: unless-stopped
+    ports:
+      - "4000:4000"
+    environment:
+      NODE_ENV: production
+      PORT: "4000"
+      DATABASE_URL: postgresql://soc:password@postgres:5432/soc?schema=public
+      CORS_ORIGIN: http://localhost:3000
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set - copy .env.example to .env}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-1h}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: sh -c "npx prisma generate && npx prisma migrate deploy && npm run start:prod"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:4000/health/ready || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  uptime-checker:
+    # Starts with everything else via plain `docker compose up -d` — no
+    # profile flag needed. What it monitors isn't set here — it polls
+    # GET /assets and watches whichever ones have monitoredUrl set, so
+    # adding/removing a site to watch is an edit in the Assets page, not a
+    # redeploy of this service.
+    build:
+      context: ./soc-uptime-checker
+      dockerfile: Dockerfile
+    container_name: soc-uptime-checker
+    restart: unless-stopped
+    environment:
+      SOC_API_URL: http://backend:4000
+      SOC_USERNAME: ${UPTIME_CHECKER_USERNAME:?set UPTIME_CHECKER_USERNAME in .env to an ANALYST-role account}
+      SOC_PASSWORD: ${UPTIME_CHECKER_PASSWORD:?set UPTIME_CHECKER_PASSWORD in .env}
+      INTERVAL_MS: ${UPTIME_CHECKER_INTERVAL_MS:-60000}
+      TIMEOUT_MS: ${UPTIME_CHECKER_TIMEOUT_MS:-10000}
+      FAIL_THRESHOLD: ${UPTIME_CHECKER_FAIL_THRESHOLD:-3}
+      CHECK_RETRIES: ${UPTIME_CHECKER_RETRIES:-2}
+      RETRY_DELAY_MS: ${UPTIME_CHECKER_RETRY_DELAY_MS:-1000}
+      CERT_WARN_DAYS: ${UPTIME_CHECKER_CERT_WARN_DAYS:-14}
+    depends_on:
+      backend:
+        condition: service_healthy
+
+  postgres:
+    image: postgres:17
+    container_name: soc-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: soc
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: soc
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U soc -d soc"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:

@@ -1,0 +1,13 @@
+# Secrets — never commit the real values, only .env.example
+.env
+.env.local
+
+# soc-backend and soc-hai are independent git repositories with their own
+# remotes; this repo only tracks the orchestration around them (compose
+# file, env template, uptime checker), never their contents.
+soc-backend/
+soc-hai/
+
+# OS/editor noise
+.DS_Store
+Thumbs.db

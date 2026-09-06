@@ -1,0 +1,10 @@
+{
+  "name": "soc-uptime-checker",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Polls external URLs and raises SOC alerts on outages.",
+  "main": "checker.js",
+  "scripts": {
+    "start": "node checker.js"
+  }
+}
