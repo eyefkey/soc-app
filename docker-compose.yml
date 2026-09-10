@@ -38,7 +38,9 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-    command: sh -c "npx prisma generate && npx prisma migrate deploy && npm run start:prod"
+    # No command override: the Dockerfile's own CMD runs migrations before
+    # starting, so local compose and any other Docker host (Render, etc.)
+    # behave identically — see soc-backend/Dockerfile.
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:4000/health/ready || exit 1"]
       interval: 10s
